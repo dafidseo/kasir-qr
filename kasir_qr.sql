@@ -1,147 +1,144 @@
 -- ============================================
--- DATABASE KASIR QR CODE - VERSION FINAL
+-- DATABASE KASIR QR CODE - VERSION FOR SUPABASE (POSTGRESQL)
 -- ============================================
-
-DROP DATABASE IF EXISTS kasir_qr;
-CREATE DATABASE kasir_qr;
-USE kasir_qr;
 
 -- ============================================
 -- 1. TABEL MEJA
 -- ============================================
 CREATE TABLE meja (
-    id_meja INT PRIMARY KEY AUTO_INCREMENT,
-    nomor_meja INT UNIQUE NOT NULL,
-    status ENUM('tersedia','terisi') DEFAULT 'tersedia',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id_meja SERIAL PRIMARY KEY,
+    nomor_meja INTEGER UNIQUE NOT NULL,
+    status VARCHAR(20) DEFAULT 'tersedia',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CHECK (status IN ('tersedia', 'terisi'))
 );
 
 -- ============================================
 -- 2. TABEL KATEGORI (dinamis)
 -- ============================================
 CREATE TABLE kategori (
-    id_kategori INT PRIMARY KEY AUTO_INCREMENT,
+    id_kategori SERIAL PRIMARY KEY,
     nama_kategori VARCHAR(50) UNIQUE NOT NULL,
     icon VARCHAR(50) DEFAULT 'fa-utensils',
-    urutan INT DEFAULT 0,
-    status ENUM('aktif','nonaktif') DEFAULT 'aktif',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    urutan INTEGER DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'aktif',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CHECK (status IN ('aktif', 'nonaktif'))
 );
 
 -- ============================================
 -- 3. TABEL MENU (dengan gambar dan stok)
 -- ============================================
 CREATE TABLE menu (
-    id_menu INT PRIMARY KEY AUTO_INCREMENT,
+    id_menu SERIAL PRIMARY KEY,
     nama_item VARCHAR(100) NOT NULL,
-    id_kategori INT,
-    kategori ENUM('makanan','minuman') DEFAULT 'makanan',
-    harga INT NOT NULL,
-    stok INT DEFAULT 0,
+    id_kategori INTEGER REFERENCES kategori(id_kategori) ON DELETE SET NULL,
+    kategori VARCHAR(20) DEFAULT 'makanan',
+    harga INTEGER NOT NULL,
+    stok INTEGER DEFAULT 0,
     gambar VARCHAR(255) DEFAULT NULL,
     deskripsi TEXT,
-    status ENUM('aktif','nonaktif') DEFAULT 'aktif',
+    status VARCHAR(20) DEFAULT 'aktif',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_kategori) REFERENCES kategori(id_kategori) ON DELETE SET NULL
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CHECK (kategori IN ('makanan', 'minuman')),
+    CHECK (status IN ('aktif', 'nonaktif'))
 );
 
 -- ============================================
 -- 4. TABEL USERS (untuk login kasir)
 -- ============================================
 CREATE TABLE users (
-    id_user INT PRIMARY KEY AUTO_INCREMENT,
+    id_user SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     nama_lengkap VARCHAR(100),
     email VARCHAR(100) UNIQUE DEFAULT NULL,
     no_telepon VARCHAR(20) DEFAULT NULL,
     foto_profil VARCHAR(255) DEFAULT NULL,
-    role ENUM('admin','kasir','owner') DEFAULT 'kasir',
+    role VARCHAR(20) DEFAULT 'kasir',
     reset_token VARCHAR(100) DEFAULT NULL,
-    reset_expires DATETIME DEFAULT NULL,
+    reset_expires TIMESTAMP DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_login TIMESTAMP NULL DEFAULT NULL,
-    is_active BOOLEAN DEFAULT TRUE
+    last_login TIMESTAMP DEFAULT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    CHECK (role IN ('admin', 'kasir', 'owner'))
 );
 
 -- ============================================
 -- 5. TABEL VARIAN MENU (untuk semua menu)
 -- ============================================
 CREATE TABLE varian_menu (
-    id_varian INT PRIMARY KEY AUTO_INCREMENT,
-    id_menu INT NOT NULL,
+    id_varian SERIAL PRIMARY KEY,
+    id_menu INTEGER NOT NULL REFERENCES menu(id_menu) ON DELETE CASCADE,
     nama_varian VARCHAR(100) NOT NULL,
-    harga_tambahan INT DEFAULT 0,
-    status ENUM('aktif','nonaktif') DEFAULT 'aktif',
+    harga_tambahan INTEGER DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'aktif',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_menu) REFERENCES menu(id_menu) ON DELETE CASCADE
+    CHECK (status IN ('aktif', 'nonaktif'))
 );
 
 -- ============================================
 -- 6. TABEL PESANAN
 -- ============================================
 CREATE TABLE pesanan (
-    id_pesanan INT PRIMARY KEY AUTO_INCREMENT,
-    id_meja INT,
-    id_user INT NULL,
+    id_pesanan SERIAL PRIMARY KEY,
+    id_meja INTEGER REFERENCES meja(id_meja) ON DELETE CASCADE,
+    id_user INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
     nomor_pesanan VARCHAR(20) UNIQUE,
     nama_pelanggan VARCHAR(100),
     catatan TEXT,
-    total_harga INT DEFAULT 0,
-    diskon INT DEFAULT 0,
-    pajak INT DEFAULT 0,
-    grand_total INT DEFAULT 0,
-    status ENUM('pending','proses','selesai','batal') DEFAULT 'pending',
-    metode_pembayaran ENUM('tunai','qris','transfer') DEFAULT 'tunai',
+    total_harga INTEGER DEFAULT 0,
+    diskon INTEGER DEFAULT 0,
+    pajak INTEGER DEFAULT 0,
+    grand_total INTEGER DEFAULT 0,
+    status VARCHAR(20) DEFAULT 'pending',
+    metode_pembayaran VARCHAR(20) DEFAULT 'tunai',
     waktu_pesan TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    waktu_selesai TIMESTAMP NULL,
-    FOREIGN KEY (id_meja) REFERENCES meja(id_meja) ON DELETE CASCADE,
-    FOREIGN KEY (id_user) REFERENCES users(id_user) ON DELETE SET NULL
+    waktu_selesai TIMESTAMP DEFAULT NULL,
+    CHECK (status IN ('pending', 'proses', 'selesai', 'batal')),
+    CHECK (metode_pembayaran IN ('tunai', 'qris', 'transfer'))
 );
 
 -- ============================================
 -- 7. TABEL DETAIL PESANAN (dengan varian)
 -- ============================================
 CREATE TABLE detail_pesanan (
-    id_detail INT PRIMARY KEY AUTO_INCREMENT,
-    id_pesanan INT,
-    id_menu INT,
-    id_varian INT DEFAULT NULL,
+    id_detail SERIAL PRIMARY KEY,
+    id_pesanan INTEGER REFERENCES pesanan(id_pesanan) ON DELETE CASCADE,
+    id_menu INTEGER REFERENCES menu(id_menu) ON DELETE CASCADE,
+    id_varian INTEGER REFERENCES varian_menu(id_varian) ON DELETE SET NULL,
     nama_varian VARCHAR(100) DEFAULT NULL,
-    harga_varian INT DEFAULT 0,
-    jumlah INT,
-    harga_satuan INT,
-    subtotal INT,
-    catatan_item TEXT,
-    FOREIGN KEY (id_pesanan) REFERENCES pesanan(id_pesanan) ON DELETE CASCADE,
-    FOREIGN KEY (id_menu) REFERENCES menu(id_menu) ON DELETE CASCADE,
-    FOREIGN KEY (id_varian) REFERENCES varian_menu(id_varian) ON DELETE SET NULL
+    harga_varian INTEGER DEFAULT 0,
+    jumlah INTEGER,
+    harga_satuan INTEGER,
+    subtotal INTEGER,
+    catatan_item TEXT
 );
 
 -- ============================================
 -- 8. TABEL QR PEMBAYARAN
 -- ============================================
 CREATE TABLE qr_pembayaran (
-    id_qr INT PRIMARY KEY AUTO_INCREMENT,
+    id_qr SERIAL PRIMARY KEY,
     nama_qr VARCHAR(100),
     gambar_qr VARCHAR(255),
     kode_qr TEXT,
-    status ENUM('aktif','nonaktif') DEFAULT 'nonaktif',
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    status VARCHAR(20) DEFAULT 'nonaktif',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CHECK (status IN ('aktif', 'nonaktif'))
 );
 
 -- ============================================
 -- 9. TABEL LOG AKTIVITAS (untuk audit)
 -- ============================================
 CREATE TABLE log_aktivitas (
-    id_log INT PRIMARY KEY AUTO_INCREMENT,
-    id_user INT,
+    id_log SERIAL PRIMARY KEY,
+    id_user INTEGER REFERENCES users(id_user) ON DELETE SET NULL,
     aktivitas VARCHAR(255),
     detail TEXT,
     ip_address VARCHAR(45),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_user) REFERENCES users(id_user) ON DELETE SET NULL
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================
@@ -201,22 +198,25 @@ INSERT INTO menu (nama_item, id_kategori, kategori, harga, stok, gambar, deskrip
 -- 13. DATA VARIAN MENU
 -- ============================================
 
--- Dapatkan ID menu (gunakan subquery)
+-- Varian untuk Es Teh Manis
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Teh Manis Dingin', 0 FROM menu WHERE nama_item = 'Es Teh Manis' LIMIT 1;
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Teh Manis Panas', 0 FROM menu WHERE nama_item = 'Es Teh Manis' LIMIT 1;
 
+-- Varian untuk Es Jeruk Fresh
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Jus Jeruk Biasa', 0 FROM menu WHERE nama_item = 'Es Jeruk Fresh' LIMIT 1;
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Jus Jeruk Dingin', 0 FROM menu WHERE nama_item = 'Es Jeruk Fresh' LIMIT 1;
 
+-- Varian untuk Kopi Hitam
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Kopi Panas', 0 FROM menu WHERE nama_item = 'Kopi Hitam' LIMIT 1;
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Kopi Dingin', 0 FROM menu WHERE nama_item = 'Kopi Hitam' LIMIT 1;
 
+-- Varian untuk Nasi Goreng Spesial
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Nasi Goreng Biasa', 0 FROM menu WHERE nama_item = 'Nasi Goreng Spesial' LIMIT 1;
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
@@ -224,11 +224,13 @@ SELECT id_menu, 'Nasi Goreng Pedas', 0 FROM menu WHERE nama_item = 'Nasi Goreng 
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Nasi Goreng Extra Pedas', 2000 FROM menu WHERE nama_item = 'Nasi Goreng Spesial' LIMIT 1;
 
+-- Varian untuk Mie Goreng Jawa
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Mie Goreng Biasa', 0 FROM menu WHERE nama_item = 'Mie Goreng Jawa' LIMIT 1;
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Mie Goreng Pedas', 0 FROM menu WHERE nama_item = 'Mie Goreng Jawa' LIMIT 1;
 
+-- Varian untuk Ayam Geprek Sambal
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Ayam Geprek Level 1 (Mild)', 0 FROM menu WHERE nama_item = 'Ayam Geprek Sambal' LIMIT 1;
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
@@ -238,14 +240,17 @@ SELECT id_menu, 'Ayam Geprek Level 3 (Pedas)', 1000 FROM menu WHERE nama_item = 
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Ayam Geprek Level 4 (Extra Pedas)', 2000 FROM menu WHERE nama_item = 'Ayam Geprek Sambal' LIMIT 1;
 
+-- Varian untuk Sate Ayam
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Sate Bumbu Kacang', 0 FROM menu WHERE nama_item = 'Sate Ayam' LIMIT 1;
 INSERT INTO varian_menu (id_menu, nama_varian, harga_tambahan) 
 SELECT id_menu, 'Sate Bumbu Kecap', 0 FROM menu WHERE nama_item = 'Sate Ayam' LIMIT 1;
 
 -- ============================================
--- 14. DATA USERS (Akun Login)
+-- 14. DATA USERS (Akun Login) - Menggunakan MD5 (PostgreSQL)
 -- ============================================
+-- PostgreSQL menggunakan MD5 dengan sintaks yang berbeda
+-- Atau gunakan crypt() untuk lebih aman
 INSERT INTO users (username, password, nama_lengkap, email, no_telepon, role, foto_profil) VALUES
 ('admin', MD5('admin123'), 'Administrator', 'admin@resto.com', '081234567890', 'admin', NULL),
 ('kasir', MD5('kasir123'), 'Kasir Resto', 'kasir@resto.com', '081234567891', 'kasir', NULL),
@@ -262,39 +267,69 @@ INSERT INTO qr_pembayaran (nama_qr, gambar_qr, kode_qr, status) VALUES
 ('OVO', NULL, NULL, 'nonaktif');
 
 -- ============================================
--- 16. VERIFIKASI DATA
+-- 16. CREATE FUNCTION untuk update updated_at
 -- ============================================
-SELECT '=========================================' AS '';
-SELECT '✅ DATABASE BERHASIL DIBUAT!' AS Status;
-SELECT '=========================================' AS '';
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
 
-SELECT '📊 Jumlah Meja: ' AS Info, COUNT(*) AS Jumlah FROM meja
-UNION ALL
-SELECT '🍽️ Jumlah Menu: ', COUNT(*) FROM menu
-UNION ALL
-SELECT '🎨 Jumlah Varian: ', COUNT(*) FROM varian_menu
-UNION ALL
-SELECT '📑 Jumlah Kategori: ', COUNT(*) FROM kategori
-UNION ALL
-SELECT '👤 Jumlah User: ', COUNT(*) FROM users
-UNION ALL
-SELECT '💳 QR Pembayaran: ', COUNT(*) FROM qr_pembayaran;
+-- Trigger untuk menu
+CREATE TRIGGER update_menu_updated_at
+    BEFORE UPDATE ON menu
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
-SELECT '=========================================' AS '';
-SELECT '📋 DATA USERS:' AS '';
+-- Trigger untuk qr_pembayaran
+CREATE TRIGGER update_qr_updated_at
+    BEFORE UPDATE ON qr_pembayaran
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
+-- 17. VERIFIKASI DATA
+-- ============================================
+DO $$
+BEGIN
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE '✅ DATABASE BERHASIL DIBUAT!';
+    RAISE NOTICE '=========================================';
+END $$;
+
+-- Tampilkan jumlah data
+SELECT '📊 Jumlah Meja: ' || COUNT(*)::TEXT FROM meja
+UNION ALL
+SELECT '🍽️ Jumlah Menu: ' || COUNT(*)::TEXT FROM menu
+UNION ALL
+SELECT '🎨 Jumlah Varian: ' || COUNT(*)::TEXT FROM varian_menu
+UNION ALL
+SELECT '📑 Jumlah Kategori: ' || COUNT(*)::TEXT FROM kategori
+UNION ALL
+SELECT '👤 Jumlah User: ' || COUNT(*)::TEXT FROM users
+UNION ALL
+SELECT '💳 QR Pembayaran: ' || COUNT(*)::TEXT FROM qr_pembayaran;
+
+-- Tampilkan data users
+SELECT '=========================================' AS separator;
+SELECT '📋 DATA USERS:' AS info;
 SELECT id_user, username, nama_lengkap, email, role, is_active FROM users;
 
-SELECT '=========================================' AS '';
-SELECT '📁 DATA KATEGORI:' AS '';
+-- Tampilkan data kategori
+SELECT '=========================================' AS separator;
+SELECT '📁 DATA KATEGORI:' AS info;
 SELECT id_kategori, nama_kategori, icon, status FROM kategori;
 
-SELECT '=========================================' AS '';
-SELECT '🍕 SAMPLE MENU DENGAN VARIAN:' AS '';
+-- Tampilkan sample menu dengan varian
+SELECT '=========================================' AS separator;
+SELECT '🍕 SAMPLE MENU DENGAN VARIAN:' AS info;
 SELECT 
     m.nama_item,
     k.nama_kategori,
     m.harga,
-    (SELECT GROUP_CONCAT(nama_varian SEPARATOR ', ') FROM varian_menu WHERE id_menu = m.id_menu AND status = 'aktif') AS varian_tersedia
+    (SELECT STRING_AGG(nama_varian, ', ') FROM varian_menu WHERE id_menu = m.id_menu AND status = 'aktif') AS varian_tersedia
 FROM menu m
 LEFT JOIN kategori k ON m.id_kategori = k.id_kategori
 WHERE m.status = 'aktif'
@@ -304,6 +339,6 @@ LIMIT 10;
 -- ============================================
 -- SELESAI
 -- ============================================
-SELECT '=========================================' AS '';
-SELECT '✅ Selesai! Database siap digunakan.' AS '';
-SELECT '=========================================' AS '';
+SELECT '=========================================' AS separator;
+SELECT '✅ Selesai! Database siap digunakan.' AS status;
+SELECT '=========================================' AS separator;
